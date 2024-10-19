@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <script>
+        var rows = 5;
+        var cols = 4;
+        var roleTypes = {
+            1: { size: { rows: 1, cols: 1 }, init: 1 << 19 },
+            2: { size: { rows: 1, cols: 2 }, init: 3 << 18 },
+            3: { size: { rows: 2, cols: 1 }, init: 17 << 15 },
+            4: { size: { rows: 2, cols: 2 }, init: 51 << 14 }
+        }
+        var initRoles = [];
+        var resultSteps = [];
+
+
+        var availableOps = 
+                [[{ step: { dr: 1, dc: 0 } }, { step: { dr: 2, dc: 0 } }],
+                [{ step: { dr: -1, dc: 0 } }, { step: { dr: -2, dc: 0 } }],
+                [{ step: { dr: 0, dc: 1 } }, { step: { dr: 0, dc: 2 } }],
+                [{ step: { dr: 0, dc: -1 } }, { step: { dr: 0, dc: -2 } }],];
+
+        function position(role) {
+            mask = 1 << 19
+            tick = 0
+            while (!(mask & role)) {
+                mask >>= 1; tick += 1;
+            }
+            return {
+                row: (tick / cols) >> 0,
+                col: tick % cols
+            }
+        }
+
+        function moveTo(roles, index, dr, dc) {
+            let role = roles[index];
+            let pos = position(role.status);
+            let s = roleTypes[role.type].size;
+            pos.row += dr;
+            pos.col += dc;
+
+            if (pos.row < 0 || pos.row + s.rows > rows ||
+                pos.col < 0 || pos.col + s.cols > cols) {
+                return false;
+            }
+            let moved = role.status;
+            let bits = dr * cols + dc;
+            if (bits < 0)
+                moved = role.status << Math.abs(bits)
+            else
+                moved = role.status >> (bits)
+
+            for (let i = 0; i < roles.length; i++)
+                if (i != index && moved & roles[i].status)
+                    return false;
+            roles[index].status = moved;
+            return true;
+        }
+
+        function addInitRole(type, row, col) {
+            if (!(type in roleTypes))
+                return false;
+
+            let s = roleTypes[type].size;
+            if (row < 0 || row + s.rows > rows ||
+                col < 0 || col + s.cols > cols) {
+                return false;
+            }
+
+            let moved = roleTypes[type].init;
+            moved = moved >> (row * cols + col)
+
+            for (let i = 0; i < initRoles.length; i++)
+                if (moved & initRoles[i].status)
+                    return false;
+
+            initRoles[initRoles.length] = {
+                status: moved,
+                type
+            }
+        }
+
+        function createMapStatus(roles, operations = []) {
+            function deepCopy(obj) {
+                if (typeof obj !== 'object' || obj === null) {
+                    return obj;
+                }
+                let copy;
+                if (Array.isArray(obj)) {
+                    copy = [];
+                    for (let i = 0; i < obj.length; i++) {
+                        copy[i] = deepCopy(obj[i]);
+                    }
+                } else {
+                    copy = {};
+                    for (let key in obj) {
+                        if (Object.hasOwnProperty.call(obj, key)) {
+                            copy[key] = deepCopy(obj[key]);
+                        }
+                    }
+                }
+                return copy;
+            }
+
+            function identity() {
+                let a = 0, b = 0, c = 0, d = 0;
+                for (role of roles) {
+                    switch (role.type) {
+                        case 1:
+                            a |= role.status;
+                            break;
+                        case 2:
+                            b |= role.status;
+                            break;
+                        case 3:
+                            c |= role.status;
+                            break
+                        case 4:
+                            d |= role.status;
+                            break
+                    }
+                }
+                return a + ',' + b + ',' + c + ',' + d;
+            }
+
+            function nextStatus() {
+                let next = []
+                for (let i = 0; i < roles.length; i++) {
+                    for (let op of availableOps) {
+                        let tmp = deepCopy(roles);
+                        if (moveTo(tmp, i, op[0].step.dr, op[0].step.dc)) {
+                            let clone = createMapStatus(tmp, deepCopy(operations));
+                            clone.operations.push({ index: i, step: op[0].step });
+                            next.push(clone)
+                            let tmp2 = deepCopy(roles);
+                            if (moveTo(tmp2, i, op[1].step.dr, op[1].step.dc)) {
+                                let clone2 = createMapStatus(tmp2, deepCopy(operations));
+                                clone2.operations.push({ index: i, step: op[1].step });
+                                next.push(clone2)
+                            }
+                        }
+                    }
+                }
+                return next;
+            }
+
+            function checkSucceed() {
+                for (let i = 0; i < roles.length; i++) {
+                    if (roles[i].type == 4) {
+                        let pos = position(roles[i].status);
+                        return pos.row == 3 && pos.col == 1;
+                    }
+                }
+                return false;
+            }
+
+            function clone() {
+                return createMapStatus(deepCopy(roles), deepCopy(operations));
+            }
+            return {
+                roles,
+                operations,
+                nextStatus,
+                clone,
+                identity,
+                checkSucceed
+            }
+        }
+
+        function search(start) {
+            let status_set = new Set();
+            let search_data = [start];
+            while (search_data.length) {
+                let base = search_data.shift();
+                for (let status of base.nextStatus()) {
+                    if (status.checkSucceed())
+                        return status;
+                    let id = status.identity();
+                    if (!status_set.has(id)) {
+                        search_data.push(status);
+                        status_set.add(id);
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/css">
+        :root {
+            --cell-size: 100px;
+            --pick-size: 50px;
+        }
+
+        #main_container {
+            display: flex;
+            gap: 20px;
+        }
+
+        #panel {
+            position: relative;
+        }
+
+        .row {
+            display: flex;
+        }
+
+        .row>div {
+            box-sizing: border-box;
+            width: var(--cell-size);
+            height: var(--cell-size);
+            border: 1px solid #ffffff;
+            background: #C7C7C7;
+            border-radius: 5px;
+            flex-shrink: 0;
+        }
+
+        #content {
+            position: absolute;
+            top: 0px;
+            left: 0px;
+        }
+
+        #content>div {
+            box-sizing: border-box;
+            border-radius: 5px;
+            border: 1px solid #ffffff;
+            position: absolute;
+        }
+
+        #content div[type='1'] {
+            background-color: #FFC700;
+            width: var(--cell-size);
+            height: var(--cell-size);
+        }
+
+        #content div[type='2'] {
+            background-color: #4D90FE;
+            width: calc(var(--cell-size) * 2);
+            height: var(--cell-size);
+        }
+
+        #content div[type='3'] {
+            background-color: #80C342;
+            width: var(--cell-size);
+            height: calc(var(--cell-size) * 2);
+        }
+
+        #content div[type='4'] {
+            background-color: #CF4444;
+            width: calc(var(--cell-size) * 2);
+            height: calc(var(--cell-size) * 2);
+        }
+
+        .selections div,
+        .selected div {
+            box-sizing: border-box;
+            border-radius: 5px;
+            border: 1px solid #ffffff;
+        }
+
+        .selections div[type='1'],
+        .selected div[type='1'] {
+            background-color: #FFC700;
+            width: var(--pick-size);
+            height: var(--pick-size);
+        }
+
+        .selections div[type='2'],
+        .selected div[type='2'] {
+            background-color: #4D90FE;
+            width: calc(var(--pick-size) * 2);
+            height: var(--pick-size);
+        }
+
+        .selections div[type='3'],
+        .selected div[type='3'] {
+            background-color: #80C342;
+            width: var(--pick-size);
+            height: calc(var(--pick-size) * 2);
+        }
+
+        .selections div[type='4'],
+        .selected div[type='4'] {
+            background-color: #CF4444;
+            width: calc(var(--pick-size) * 2);
+            height: calc(var(--pick-size) * 2);
+        }
+
+        #content div {
+            transition: top 0.2s ease-in-out, left 0.2s ease-in-out;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="main_container">
+        <div id="panel">
+            <div id="grid">
+                <!-- <div class="row">
+                    <div class="grid_cell" row="0" col="1"></div>
+                    <div class="grid_cell" row="0" col="1"></div>
+                    <div class="grid_cell" row="0" col="2"></div>
+                    <div class="grid_cell" row="0" col="3"></div>
+                </div> -->
+            </div>
+            <div id="content">
+            </div>
+        </div>
+        <div id="pick">
+            <div class="selections">
+                <div type="1"></div>
+                <div type="2"></div>
+                <div type="3"></div>
+                <div type="4"></div>
+            </div>
+            <div><a>Selected:</a></div>
+            <div class="selected">
+                <div></div>
+            </div>
+        </div>
+    </div>
+    <div id="input">
+        <button type="button" onclick="resetLayout()">重置</button>
+        <button type="button" onclick="beginLayout()">重新布局</button>
+        <button type="button" onclick="beginSearch()">开始计算</button>
+        <button id='playback' type="button" onclick="playback()" setep='0'>回看</button>
+    </div>
+    <div>
+        <a id="result"></a>
+    </div>
+    <script>
+        function playback() {
+            let playButton = document.querySelector('#playback')
+            let step = parseInt(playButton.getAttribute('step'));
+            if (step >= 0 && step < resultSteps.length) {
+                let stepop = resultSteps[step];
+                let index = stepop.index;
+                let content = document.querySelector("#content div[index='" + index + "']");
+                if (content) {
+                    let row = parseInt(content.style.getPropertyValue('--row'));
+                    let col = parseInt(content.style.getPropertyValue('--col'));
+                    row += stepop.step.dr;
+                    col += stepop.step.dc;
+                    content.style.setProperty('--row', row);
+                    content.style.setProperty('--col', col);
+                }
+                playButton.setAttribute('step', step + 1);
+            }
+            else {
+                updateLayout();
+                let playButton = document.querySelector('#playback')
+                playButton.setAttribute('step', 0);
+            }
+        }
+    </script>
+    <script>
+        function clearLayout() {
+            let content = document.querySelector('#content');
+            content.innerHTML = '';
+        }
+        function updateLayout() {
+            clearLayout();
+            let content = document.querySelector('#content');
+            for (let i = 0; i < initRoles.length; i++) {
+                let role = initRoles[i];
+                let role_ele = document.createElement('div');
+                role_ele.setAttribute('index', i)
+                role_ele.setAttribute('type', role.type)
+                let pos = position(role.status);
+                role_ele.style.setProperty('--row', pos.row);
+                role_ele.style.setProperty('--col', pos.col);
+                role_ele.style.top = 'calc(var(--cell-size) * var(--row))';
+                role_ele.style.left = 'calc(var(--cell-size) * var(--col))';
+                content.appendChild(role_ele);
+            }
+        }
+
+        (function () {
+            let selectType = 0;
+            let grid = document.querySelector('#grid');
+            for (let r = 0; r < rows; r++) {
+                let row = document.createElement('div');
+                row.classList.add('row');
+                for (let c = 0; c < cols; c++) {
+                    let cell = document.createElement('div');
+                    cell.classList.add('grid-cell');
+                    cell.setAttribute('row', r);
+                    cell.setAttribute('col', c);
+                    row.appendChild(cell);
+                }
+                grid.appendChild(row);
+            }
+            grid.addEventListener('click', (event) => {
+                if (event.target.classList.contains('grid-cell')) {
+                    let row = parseInt(event.target.getAttribute('row'));
+                    let col = parseInt(event.target.getAttribute('col'));
+                    if (selectType > 0) {
+                        addInitRole(selectType, row, col);
+                        updateLayout();
+                    }
+                }
+            });
+
+            // let content = document.querySelector('#content');
+            // content.addEventListener('click', (event) => {
+            //     if (event.target.hasAttribute('index')) {
+            //         let index = parseInt(event.target.getAttribute('index'));
+            //         if (index >= 0 && index < initRoles.length) {
+            //             initRoles.splice(index, 1);
+            //             updateLayout();
+            //         }
+            //     }
+            // });
+
+            let picklist = document.querySelector('.selections');
+            picklist.addEventListener('click', (event) => {
+                let selected = document.querySelector('.selected > div:nth-child(1)');
+                selected.setAttribute('type', event.target.getAttribute('type'));
+                selectType = parseInt(selected.getAttribute('type'));
+            });
+        })();
+
+        function beginSearch() {
+            document.querySelector('#playback').setAttribute('step', '0');
+            resultSteps = [];
+            let result_tip = document.querySelector('#result');
+            let can_search = false;
+            for (role of initRoles) {
+                if (role.type == 4) {
+                    can_search = true;
+                    break;
+                }
+            }
+            if (can_search) {
+                let base = createMapStatus(initRoles);
+                let result = search(base);
+                if (result) {
+                    resultSteps = result.operations;
+                    result_tip.innerHTML = '成功，需要' + result.operations.length + '步';
+                    console.log();
+                }
+                else {
+                    result_tip.innerHTML = '失败'
+                }
+            }
+            else {
+                result_tip.innerHTML = '不可计算'
+            }
+        }
+        function resetLayout() {
+            updateLayout();
+        }
+        function beginLayout() {
+            clearLayout();
+            initRoles = [];
+            resultSteps = [];
+            document.querySelector('#playback').setAttribute('step', '0');
+        }
+    </script>
+</body>
+
+</html>
