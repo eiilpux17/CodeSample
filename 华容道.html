@@ -19,11 +19,11 @@
         var resultSteps = [];
 
 
-        var availableOps = 
-                [[{ step: { dr: 1, dc: 0 } }, { step: { dr: 2, dc: 0 } }],
-                [{ step: { dr: -1, dc: 0 } }, { step: { dr: -2, dc: 0 } }],
-                [{ step: { dr: 0, dc: 1 } }, { step: { dr: 0, dc: 2 } }],
-                [{ step: { dr: 0, dc: -1 } }, { step: { dr: 0, dc: -2 } }],];
+        var availableOps =
+            [[{ step: { dr: 1, dc: 0 } }, { step: { dr: 2, dc: 0 } }],
+            [{ step: { dr: -1, dc: 0 } }, { step: { dr: -2, dc: 0 } }],
+            [{ step: { dr: 0, dc: 1 } }, { step: { dr: 0, dc: 2 } }],
+            [{ step: { dr: 0, dc: -1 } }, { step: { dr: 0, dc: -2 } }],];
 
         function position(role) {
             mask = 1 << 19
@@ -317,20 +317,35 @@
                 <div type="3"></div>
                 <div type="4"></div>
             </div>
-            <div><a>Selected:</a></div>
+            <div><a>当前选中：</a></div>
             <div class="selected">
                 <div></div>
             </div>
         </div>
     </div>
     <div id="input">
-        <button type="button" onclick="resetLayout()">重置</button>
         <button type="button" onclick="beginLayout()">重新布局</button>
+        <button type="button" onclick="resetLayout()">重置</button>
         <button type="button" onclick="beginSearch()">开始计算</button>
         <button id='playback' type="button" onclick="playback()" setep='0'>回看</button>
     </div>
     <div>
         <a id="result"></a>
+    </div>
+    <div>
+        <p>使用方法：</p>
+        <ol>
+            <li>在右侧鼠标点击选择方块类型</li>
+            <li>在左侧网格中放置选中的方块类型</li>
+            <li>点击“开始计算”，求解当前华容道的解法</li>
+            <li>每点击“回看”，按步骤动画显示每一步的操作</li>
+        </ol>
+
+        <p>其他：</p>
+        <ul>
+            <li>点击“重新布局”，清空布局，清空求解结果</li>
+            <li>点击“重置”，回到布局初始状态，清空求解结果</li>
+        </ul>
     </div>
     <script>
         function playback() {
@@ -452,6 +467,7 @@
             }
         }
         function resetLayout() {
+            resultSteps = [];
             updateLayout();
         }
         function beginLayout() {
